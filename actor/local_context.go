@@ -356,7 +356,6 @@ func (ctx *localContext) handleStop(msg *Stop) {
 //child stopped, check if we can stop or restart (if needed)
 func (ctx *localContext) handleTerminated(msg *Terminated) {
 	ctx.children.Remove(msg.Who)
-	ctx.watching.Remove(msg.Who)
 
 	ctx.InvokeUserMessage(msg)
 	ctx.tryRestartOrTerminate()
@@ -406,9 +405,14 @@ func (ctx *localContext) stopped() {
 	ProcessRegistry.Remove(ctx.self)
 	ctx.InvokeUserMessage(stoppedMessage)
 	otherStopped := &Terminated{Who: ctx.self}
+	//Notify watchers
 	ctx.watchers.ForEach(func(i int, pid PID) {
 		pid.sendSystemMessage(otherStopped)
 	})
+	//Notify parent
+	if ctx.parent != nil {
+		ctx.parent.sendSystemMessage(otherStopped)
+	}
 	ctx.state = stateStopped
 }
 
@@ -473,7 +477,6 @@ func (ctx *localContext) SpawnNamed(props *Props, name string) (*PID, error) {
 	}
 
 	ctx.children.Add(pid)
-	ctx.Watch(pid)
 
 	return pid, nil
 }
